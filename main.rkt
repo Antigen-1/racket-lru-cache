@@ -42,12 +42,13 @@
 
               (update-records!
                (lambda (record result)
-                 (define loc (vector-member record vec))
-                 (cond (loc (vector-copy! vec loc vec (add1 loc) cnt))
+                 (cond ((hash-has-key? tbl record)
+                        (define loc (vector-member record vec))
+                        (vector-copy! vec loc vec (add1 loc) cnt))
                        (else (hash-remove! tbl (vector-ref vec 0))
-                             (vector-copy! vec 0 vec 1 cnt)))
-                 (vector-set! vec (sub1 cnt) record)
-                 (hash-ref! tbl record result))))
+                             (vector-copy! vec 0 vec 1 cnt)
+                             (hash-set! tbl record result)))
+                 (vector-set! vec (sub1 cnt) record))))
          (lambda args
            (let* ((record
                    (vector-immutable
@@ -91,10 +92,14 @@
   (let* ((a 1) (proc (lambda/lru-cache 2 (b) (dynamic-wind void (lambda () a) (lambda () (set! a b))))))
     (check-equal? (proc 1) 1)
     (check-equal? (proc 2) 1)
-    (check-equal? (proc 1) 1))
+    (check-equal? (proc 1) 1)
+    (check-equal? (proc 2) 1)
+    (check-equal? (proc 3) 2))
 
   ;; Benchmark
   (writeln '(time (fib 40)))
-  (time (fib 40))
+  (void (time (fib 40)))
   (writeln '(time (fib/cached 40)))
-  (time (fib/cached 40)))
+  (void (time (fib/cached 40)))
+  (writeln '(time (fib/cached 40000)))
+  (void (time (fib/cached 40000))))
