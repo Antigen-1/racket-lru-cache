@@ -26,6 +26,7 @@
 ;; Code here
 
 (require (for-syntax "argument.rkt" racket/base) syntax/parse/define racket/vector)
+(provide lambda/lru-cache)
 
 (define-syntax-parser lambda/lru-cache
   ((_ cnt:exact-positive-integer args body ...+)
