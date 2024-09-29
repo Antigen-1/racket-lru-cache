@@ -7,6 +7,7 @@
 
 @defmodule[racket-lru-cache]
 
-@defform[(lambda/lru-cache kw-formals body ...+)
+@defform[(lambda/lru-cache size kw-formals body ...+)
          #:grammar [(kw-formals (arg ...) (arg ...+ . rest-id) rest-id)
-                    (arg id (code-line) [id default-expr] (code-line) keyword id (code-line) keyword [id default-expr])]]
+                    (arg id (code:line [id default-expr]) (code:line keyword id) (code:line keyword [id default-expr]))]
+         #:contracts [(size exact-positive-integer?)]]
