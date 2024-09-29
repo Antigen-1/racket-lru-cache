@@ -1,3 +1,3 @@
 racket-lru-cache
 ================
-README text here.
+Macros used to create LRU cached functions.

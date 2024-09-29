@@ -7,4 +7,6 @@
 
 @defmodule[racket-lru-cache]
 
-Package Description Here
+@defform[(lambda/lru-cache kw-formals body ...+)
+         #:grammar [(kw-formals (arg ...) (arg ...+ . rest-id) rest-id)
+                    (arg id (code-line) [id default-expr] (code-line) keyword id (code-line) keyword [id default-expr])]]
