@@ -30,13 +30,13 @@
 
 (define-syntax-parser lambda/lru-cache
   ((_ cnt:exact-positive-integer args body ...+)
-   (let* ((arguments-info (parse-arguments #'args))
-          (fixed (arguments-info-fixed arguments-info))
-          (sequential (filter (lambda (i) (and (not (argument-info-keyword i)) (not (argument-info-value i)))) fixed))
-          (sequential/optional (filter (lambda (i) (and (not (argument-info-keyword i)) (argument-info-value i))) fixed))
+   (let* ((formals-info (parse-formals #'args))
+          (fixed (formals-info-fixed formals-info))
+          (positional (filter (lambda (i) (and (not (argument-info-keyword i)) (not (argument-info-value i)))) fixed))
+          (positional/optional (filter (lambda (i) (and (not (argument-info-keyword i)) (argument-info-value i))) fixed))
           (keyword (filter (lambda (i) (and (argument-info-keyword i) (not (argument-info-value i)))) fixed))
           (keyword/optional (filter (lambda (i) (and (argument-info-keyword i) (argument-info-value i))) fixed))
-          (rest (arguments-info-rest arguments-info)))
+          (rest (formals-info-rest formals-info)))
      #`(let* ((vec (make-vector cnt #f)) ;; real records are all lists
               (tbl (make-hash))
 
@@ -52,8 +52,8 @@
          (lambda args
            (let* ((record
                    (vector-immutable
-                    #,@(map argument-info-name sequential)
-                    #,@(map argument-info-name sequential/optional)
+                    #,@(map argument-info-name positional)
+                    #,@(map argument-info-name positional/optional)
                     #,@(map argument-info-name keyword)
                     #,@(map argument-info-name keyword/optional)
                     #,@(if rest (list rest) '())))

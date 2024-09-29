@@ -1,11 +1,11 @@
 #lang racket/base
 (require (for-template syntax/parse/define))
 (provide (struct-out argument-info)
-         (struct-out arguments-info)
-         parse-arguments)
+         (struct-out formals-info)
+         parse-formals)
 
 (struct argument-info (keyword name value) #:constructor-name make-info)
-(struct arguments-info (fixed rest) #:constructor-name make-info-list)
+(struct formals-info (fixed rest) #:constructor-name make-info-list)
 
 (define (make-info-list/check-names fixed rest)
   (cond ((check-duplicate-identifier `(,@(map argument-info-name fixed) ,@(if rest (list rest) null)))
@@ -30,7 +30,7 @@
      (make-info #'keyword #'name #'value))
     (_ (raise-syntax-error #f "fail to parse the argument" stx))))
 
-(define (parse-arguments stx)
+(define (parse-formals stx)
   (syntax-parse stx
     (arg:id (make-info-list/check-names null #'arg))
     ((arg:argument ...)
@@ -41,4 +41,4 @@
      (make-info-list/check-names
       (map parse-argument (syntax->list #'(arg ...)))
       #'rest))
-    (_ (raise-syntax-error #f "fail to parse arguments" stx))))
+    (_ (raise-syntax-error #f "fail to parse formals" stx))))
