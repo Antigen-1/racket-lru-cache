@@ -25,8 +25,10 @@
 
 ;; Code here
 
-(require (for-syntax "argument.rkt" racket/base) syntax/parse/define racket/vector)
+(require (for-syntax "argument.rkt" racket/base) syntax/parse/define racket/vector racket/unsafe/ops)
 (provide lambda/lru-cache)
+
+(define none (gensym))
 
 (define-syntax-parser lambda/lru-cache
   ((_ cnt:exact-positive-integer args body ...+)
@@ -37,18 +39,20 @@
           (keyword (filter (lambda (i) (and (argument-info-keyword i) (not (argument-info-value i)))) fixed))
           (keyword/optional (filter (lambda (i) (and (argument-info-keyword i) (argument-info-value i))) fixed))
           (rest (formals-info-rest formals-info)))
-     #`(let* ((vec (make-vector cnt #f)) ;; real records are all lists
+     #`(let* ((vec (make-vector cnt #f)) ;; real records are all vectors
               (tbl (make-hash))
 
               (update-records!
-               (lambda (record result)
-                 (cond ((hash-has-key? tbl record)
+               (lambda (record result has?)
+                 (cond (has?
                         (define loc (vector-member record vec))
                         (vector-copy! vec loc vec (add1 loc) cnt))
-                       (else (hash-remove! tbl (vector-ref vec 0))
-                             (vector-copy! vec 0 vec 1 cnt)
-                             (hash-set! tbl record result)))
-                 (vector-set! vec (sub1 cnt) record))))
+                       (else
+                        (define f (unsafe-vector*-ref vec 0))
+                        (and f (hash-remove! tbl f))
+                        (vector-copy! vec 0 vec 1 cnt)
+                        (hash-set! tbl record result)))
+                 (unsafe-vector*-set! vec (sub1 cnt) record))))
          (lambda args
            (let* ((record
                    (vector-immutable
@@ -57,9 +61,14 @@
                     #,@(map argument-info-name keyword)
                     #,@(map argument-info-name keyword/optional)
                     #,@(if rest (list rest) '())))
-                  (result (hash-ref tbl record (lambda () body ...))))
-             (update-records! record result)
-             result))))))
+                  (result (hash-ref tbl record none)))
+             (if (eq? result none)
+                 (let ((real-result (let () body ...)))
+                   (update-records! record real-result #f)
+                   real-result)
+                 (let ()
+                   (update-records! record result #t)
+                   result))))))))
 
 (module+ test
   ;; Any code in this `test` submodule runs when this file is run using DrRacket
@@ -75,7 +84,7 @@
                (fib (- n 2))))))
   (define fib/cached
     (lambda/lru-cache
-     5
+     3
      (n)
      (if (zero? n)
          1
@@ -86,6 +95,7 @@
 
   (define rand-num (random 0 20))
   (check-equal? (fib rand-num) (fib/cached rand-num))
+
   (check-equal? ((lambda/lru-cache 1 a (apply + a)) 1 2 3) 6)
   (check-equal? ((lambda/lru-cache 1 (a . b) (apply + a b)) 1 2 3) 6)
   (check-equal? ((lambda/lru-cache 1 (#:a a) a) #:a 1) 1)
@@ -96,10 +106,17 @@
     (check-equal? (proc 2) 1)
     (check-equal? (proc 3) 2))
 
+  (define-syntax-rule (mytime expr)
+    (let ()
+      (collect-garbage)
+      (collect-garbage)
+      (collect-garbage)
+      (time expr)))
+
   ;; Benchmark
   (writeln '(time (fib 40)))
-  (void (time (fib 40)))
+  (void (mytime (fib 40)))
   (writeln '(time (fib/cached 40)))
-  (void (time (fib/cached 40)))
+  (void (mytime (fib/cached 40)))
   (writeln '(time (fib/cached 40000)))
-  (void (time (fib/cached 40000))))
+  (void (mytime (fib/cached 40000))))
