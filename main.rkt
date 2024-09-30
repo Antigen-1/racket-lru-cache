@@ -52,7 +52,7 @@
                         (and f (hash-remove! tbl f))
                         (vector-copy! vec 0 vec 1 cnt)
                         (hash-set! tbl record result)))
-                 (unsafe-vector*-set! vec (sub1 cnt) record))))
+                 (unsafe-vector*-set! vec #,(sub1 (syntax->datum #'cnt)) record))))
          (lambda args
            (let* ((record
                    (vector-immutable
