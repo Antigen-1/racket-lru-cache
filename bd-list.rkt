@@ -3,8 +3,10 @@
 
 (require #;racket/contract (submod racket/performance-hint begin-encourage-inline))
 (provide
- make-initial-node node-empty? node-right-empty? node-left-empty? delete-node! insert-node! insert-node!/right node-last node-next
- (rename-out (n:node-value node-value))
+ make-initial-node node-empty? node-right-empty? node-left-empty? delete-node! insert-node! insert-node!/right
+ (rename-out (n:node-value node-value)
+             (n:node-next node-next)
+             (n:node-last node-last))
  ;; For illustration and testing
  #;(contract-out
   #:exists node
@@ -50,6 +52,14 @@
     (if (node-empty? n)
         (raise-argument-error 'node-value "(lambda (n) (not (node-empty? n)))" n)
         (node-value n)))
+  (define (n:node-last n)
+    (if (node-left-empty? n)
+        (raise-argument-error 'node-last "(lambda (n) (not (node-left-empty? n)))" n)
+        (node-last n)))
+  (define (n:node-next n)
+    (if (node-right-empty? n)
+        (raise-argument-error 'node-next "(lambda (n) (not (node-right-empty? n)))" n)
+        (node-next n)))
   (define (delete-node! n)
     (or (and (node-empty? n) (raise-argument-error 'delete-node! "(lambda (n) (not (node-empty? n)))" n))
         (and (node-right-empty? n)
