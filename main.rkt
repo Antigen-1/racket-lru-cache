@@ -25,7 +25,7 @@
 
 ;; Code here
 
-(require (for-syntax "argument.rkt" racket/base) syntax/parse/define racket/vector racket/unsafe/ops)
+(require (for-syntax "argument.rkt" racket/base racket/fixnum) "bd-list.rkt" syntax/parse/define racket/unsafe/ops)
 (provide lambda/lru-cache)
 
 (define none (gensym))
@@ -38,21 +38,56 @@
           (positional/optional (filter (lambda (i) (and (not (argument-info-keyword i)) (argument-info-value i))) fixed))
           (keyword (filter (lambda (i) (and (argument-info-keyword i) (not (argument-info-value i)))) fixed))
           (keyword/optional (filter (lambda (i) (and (argument-info-keyword i) (argument-info-value i))) fixed))
-          (rest (formals-info-rest formals-info)))
-     #`(let* ((vec (make-vector cnt #f)) ;; real records are all vectors
+          (rest (formals-info-rest formals-info))
+
+          (fx? (fixnum-for-every-system? (syntax->datum #'cnt)))
+          (n:< (if fx? #'unsafe-fx< #'<))
+          (n:+ (if fx? #'unsafe-fx+ #'+))
+          )
+     #`(let* ((init-node (make-initial-node))
+
+              (tail-box (box init-node))
+              (head-box (box init-node))
               (tbl (make-hash))
 
+              (len-box (box 0))
+
+              (insert-record-to-tail!
+               (lambda (record)
+                 (define tail (unsafe-unbox* tail-box))
+                 (unsafe-set-box*! tail-box (insert-node!/right tail record))))
+              (maybe-set-new-head!
+               ;; the head may need to be reset before an element is removed
+               (lambda (n)
+                 (cond
+                   ;; n is stored in head-box when it is the only node
+                   #;((and (node-left-empty? n) (node-right-empty? n))
+                      (set-box*! head-box n))
+                   ((and (not (node-right-empty? n)) (node-left-empty? n))
+                    (unsafe-set-box*! head-box (node-next n))))))
               (update-records!
                (lambda (record result has?)
                  (cond (has?
-                        (define loc (vector-member record vec))
-                        (vector-copy! vec loc vec (add1 loc) cnt))
+                        ;; it is much faster to use tail-box than to use head-box here
+                        ;; because node-last is much faster than node-next
+                        (let loop ((n (unsafe-unbox* tail-box)))
+                          (let ((v (node-value n)))
+                            (cond ((equal? v record)
+                                   (insert-record-to-tail! record)
+                                   (maybe-set-new-head! n)
+                                   (delete-node! n))
+                                  (else (loop (node-last n)))))))
+                       ((#,n:< (unsafe-unbox* len-box) cnt)
+                        (insert-record-to-tail! record)
+                        (unsafe-set-box*! len-box (#,n:+ 1 (unsafe-unbox* len-box)))
+                        (hash-set! tbl record result))
                        (else
-                        (define f (unsafe-vector*-ref vec 0))
-                        (and f (hash-remove! tbl f))
-                        (vector-copy! vec 0 vec 1 cnt)
-                        (hash-set! tbl record result)))
-                 (unsafe-vector*-set! vec #,(sub1 (syntax->datum #'cnt)) record))))
+                        (define h (unsafe-unbox* head-box))
+                        (insert-record-to-tail! record)
+                        (maybe-set-new-head! h)
+                        (delete-node! h)
+                        (hash-set! tbl record result)
+                        (hash-remove! tbl (node-value h)))))))
          (lambda args
            (let* ((record
                    (vector-immutable
@@ -84,7 +119,7 @@
                (fib (- n 2))))))
   (define fib/cached
     (lambda/lru-cache
-     3
+     20
      (n)
      (if (zero? n)
          1
