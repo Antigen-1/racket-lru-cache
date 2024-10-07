@@ -49,13 +49,16 @@
               (tail-box (box init-node))
               (head-box (box init-node))
               (tbl (make-hash))
+              (node-cache (make-hash))
 
               (len-box (box 0))
 
               (insert-record-to-tail!
                (lambda (record)
                  (define tail (unsafe-unbox* tail-box))
-                 (unsafe-set-box*! tail-box (insert-node!/right tail record))))
+                 (define n (insert-node!/right tail record))
+                 (unsafe-set-box*! tail-box n)
+                 n))
               (maybe-set-new-head!
                ;; the head may need to be reset before an element is removed
                (lambda (n)
@@ -65,29 +68,29 @@
                       (set-box*! head-box n))
                    ((and (not (node-right-empty? n)) (node-left-empty? n))
                     (unsafe-set-box*! head-box (node-next n))))))
+              (move-to-tail!
+               (lambda (n)
+                 (insert-record-to-tail! (node-value n))
+                 (maybe-set-new-head! n)
+                 (delete-node! n)))
               (update-records!
                (lambda (record result has?)
-                 (cond (has?
-                        ;; it is much faster to use tail-box than to use head-box here
-                        ;; because node-last is much faster than node-next
-                        (let loop ((n (unsafe-unbox* tail-box)))
-                          (let ((v (node-value n)))
-                            (cond ((equal? v record)
-                                   (insert-record-to-tail! record)
-                                   (maybe-set-new-head! n)
-                                   (delete-node! n))
-                                  (else (loop (node-last n)))))))
+                 (cond (has? (move-to-tail! (hash-ref node-cache record))) ;; the record registered in tbl is registered in node-cache
                        ((#,n:< (unsafe-unbox* len-box) cnt)
-                        (insert-record-to-tail! record)
+                        (define n (insert-record-to-tail! record))
                         (unsafe-set-box*! len-box (#,n:+ 1 (unsafe-unbox* len-box)))
-                        (hash-set! tbl record result))
+                        (hash-set! tbl record result)
+                        (hash-set! node-cache record n))
                        (else
                         (define h (unsafe-unbox* head-box))
-                        (insert-record-to-tail! record)
+                        (define n (insert-record-to-tail! record))
+                        (define hv (node-value h))
                         (maybe-set-new-head! h)
                         (delete-node! h)
                         (hash-set! tbl record result)
-                        (hash-remove! tbl (node-value h)))))))
+                        (hash-set! node-cache record n)
+                        (hash-remove! tbl hv)
+                        (hash-remove! node-cache hv))))))
          (lambda args
            (let* ((record
                    (vector-immutable
@@ -119,7 +122,7 @@
                (fib (- n 2))))))
   (define fib/cached
     (lambda/lru-cache
-     20
+     100
      (n)
      (if (zero? n)
          1
@@ -153,5 +156,5 @@
   (void (mytime (fib 40)))
   (writeln '(time (fib/cached 40)))
   (void (mytime (fib/cached 40)))
-  (writeln '(time (fib/cached 40000)))
-  (void (mytime (fib/cached 40000))))
+  (writeln '(time (fib/cached 100000)))
+  (void (mytime (fib/cached 100000))))
