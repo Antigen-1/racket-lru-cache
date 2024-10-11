@@ -70,7 +70,9 @@
                     (unsafe-set-box*! head-box (node-next n))))))
               (move-to-tail!
                (lambda (n)
-                 (insert-record-to-tail! (node-value n))
+                 (define record (node-value n))
+                 (define nn (insert-record-to-tail! record))
+                 (hash-set! node-cache record nn)
                  (maybe-set-new-head! n)
                  (delete-node! n)))
               (update-records!
@@ -155,8 +157,10 @@
 
   ;; Benchmark
   (writeln '(time (fib 40)))
-  (void (mytime (fib 40)))
+  (define r1 (mytime (fib 40)))
   (writeln '(time (fib/cached 40)))
-  (void (mytime (fib/cached 40)))
+  (define r2 (mytime (fib/cached 40)))
   (writeln '(time (fib/cached 100000)))
-  (void (mytime (fib/cached 100000))))
+  (void (mytime (fib/cached 100000)))
+
+  (check-equal? r1 r2))
