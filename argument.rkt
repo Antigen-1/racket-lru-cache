@@ -7,9 +7,27 @@
 (struct argument-info (keyword name value) #:constructor-name make-info)
 (struct formals-info (fixed rest) #:constructor-name make-info-list)
 
-(define (make-info-list/check-names fixed rest)
+(define (arg->section a)
+  (cond ((argument-info-keyword a) 'keyword)
+        ((and (not (argument-info-keyword a)) (not (argument-info-value a)))
+         'positional)
+        (else 'positional/optional)))
+(define (check-arg-sections fixed (section #f))
+  (cond ((null? fixed) #f)
+        (else (case (list section (arg->section (car fixed)))
+                (((positional positional/optional))
+                 (check-arg-sections (cdr fixed) 'positional/optional))
+                (((_ keyword))
+                 (check-arg-sections (cdr fixed) section))
+                (((#f _))
+                 (check-arg-sections (cdr fixed) (arg->section (car fixed))))
+                (((positional/optional positional))
+                 (raise-syntax-error #f "default-value expression missing" (argument-info-name (car fixed))))
+                (else (check-arg-sections (cdr fixed) section))))))
+(define (make-info-list/checks fixed rest)
   (cond ((check-duplicate-identifier `(,@(map argument-info-name fixed) ,@(if rest (list rest) null)))
          => (lambda (id) (raise-syntax-error #f "duplicate identifiers" id)))
+        ((check-arg-sections fixed))
         (else (make-info-list fixed rest))))
 
 (define-splicing-syntax-class argument
@@ -32,13 +50,13 @@
 
 (define (parse-formals stx)
   (syntax-parse stx
-    (arg:id (make-info-list/check-names null #'arg))
+    (arg:id (make-info-list/checks null #'arg))
     ((arg:argument ...)
-     (make-info-list/check-names
+     (make-info-list/checks
       (map parse-argument (syntax->list #'(arg ...)))
       #f))
     ((arg:argument ... . rest:id)
-     (make-info-list/check-names
+     (make-info-list/checks
       (map parse-argument (syntax->list #'(arg ...)))
       #'rest))
     (_ (raise-syntax-error #f "fail to parse formals" stx))))
