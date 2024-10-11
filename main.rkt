@@ -137,6 +137,8 @@
   (check-equal? ((lambda/lru-cache 1 a (apply + a)) 1 2 3) 6)
   (check-equal? ((lambda/lru-cache 1 (a . b) (apply + a b)) 1 2 3) 6)
   (check-equal? ((lambda/lru-cache 1 (#:a a) a) #:a 1) 1)
+  (check-equal? ((lambda/lru-cache 1 ((a 1)) (add1 a))) 2)
+  (check-equal? ((lambda/lru-cache 1 ((a 1)) (add1 a)) 2) 3)
   (let* ((a 1) (proc (lambda/lru-cache 2 (b) (dynamic-wind void (lambda () a) (lambda () (set! a b))))))
     (check-equal? (proc 1) 1)
     (check-equal? (proc 2) 1)

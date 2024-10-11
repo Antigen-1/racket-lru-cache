@@ -33,7 +33,7 @@
 (define-splicing-syntax-class argument
   #:description "argument syntax of lambda/lru-cache"
   (pattern (~seq name:id))
-  (pattern (~seq name:id value:expr))
+  (pattern (~seq (name:id value:expr)))
   (pattern (~seq keyword:keyword name:id))
   (pattern (~seq keyword:keyword (name:id value:expr))))
 (define (parse-argument stx)
